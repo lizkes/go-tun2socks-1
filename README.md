@@ -23,3 +23,17 @@ The following projects are using go-tun2socks:
 
 - https://github.com/mellow-io/mellow
 - https://github.com/eycorsican/kitsunebi-android
+
+## Quick start
+
+Create an ssh SOCKS proxy:
+
+```sh
+ssh -D 1234 -C -N user@example.com
+```
+
+Create a tunnel:
+
+```sh
+sudo tun2socks -proxyServer 127.0.0.1:1234 -routes 10.0.0.0/8,172.16.0.0/12 -exclude example.com,10.0.0.1 -loglevel debug
+```

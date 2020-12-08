@@ -15,6 +15,7 @@ import (
 	"github.com/eycorsican/go-tun2socks/common/log"
 	_ "github.com/eycorsican/go-tun2socks/common/log/simple" // Register a simple logger.
 	"github.com/eycorsican/go-tun2socks/core"
+	"github.com/eycorsican/go-tun2socks/routes"
 	"github.com/eycorsican/go-tun2socks/tun"
 )
 
@@ -48,6 +49,8 @@ type CmdArgs struct {
 	UdpTimeout      *time.Duration
 	LogLevel        *string
 	DnsFallback     *bool
+	Routes          *string
+	Exclude         *string
 }
 
 type cmdFlag uint
@@ -91,12 +94,14 @@ func main() {
 	args.TunName = flag.String("tunName", "tun1", "TUN interface name")
 	args.TunAddr = flag.String("tunAddr", "10.255.0.2", "TUN interface address")
 	args.TunGw = flag.String("tunGw", "10.255.0.1", "TUN interface gateway")
-	args.TunMask = flag.String("tunMask", "255.255.255.0", "TUN interface netmask, it should be a prefixlen (a number) for IPv6 address")
+	args.TunMask = flag.String("tunMask", "255.255.255.255", "TUN interface netmask, it should be a prefixlen (a number) for IPv6 address")
 	args.TunDns = flag.String("tunDns", "8.8.8.8,8.8.4.4", "DNS resolvers for TUN interface (only need on Windows)")
 	args.TunPersist = flag.Bool("tunPersist", false, "Persist TUN interface after the program exits or the last open file descriptor is closed (Linux only)")
 	args.BlockOutsideDns = flag.Bool("blockOutsideDns", false, "Prevent DNS leaks by blocking plaintext DNS queries going out through non-TUN interface (may require admin privileges) (Windows only) ")
 	args.ProxyType = flag.String("proxyType", "socks", "Proxy handler type")
 	args.LogLevel = flag.String("loglevel", "info", "Logging level. (debug, info, warn, error, none)")
+	args.Routes = flag.String("routes", "", "Subnets to forward via TUN interface")
+	args.Exclude = flag.String("exclude", "", "Subnets or hostnames to exclude from forwarding via TUN interface")
 
 	flag.Parse()
 
@@ -128,12 +133,23 @@ func main() {
 		panic("unsupport logging level")
 	}
 
+	tunGw, tunRoutes, err := routes.Get(*args.Routes, *args.Exclude, *args.TunAddr, *args.TunGw, *args.TunMask)
+	if err != nil {
+		log.Fatalf("cannot parse config values: %v", err)
+	}
+
 	// Open the tun device.
 	dnsServers := strings.Split(*args.TunDns, ",")
 	tunDev, err := tun.OpenTunDevice(*args.TunName, *args.TunAddr, *args.TunGw, *args.TunMask, dnsServers, *args.TunPersist)
 	if err != nil {
 		log.Fatalf("failed to open tun device: %v", err)
 	}
+
+	// unset routes on exit, when provided
+	defer routes.Unset(*args.TunName, tunGw, tunRoutes)
+
+	// set routes, when provided
+	routes.Set(*args.TunName, tunGw, tunRoutes)
 
 	if runtime.GOOS == "windows" && *args.BlockOutsideDns {
 		if err := blocker.BlockOutsideDns(*args.TunName); err != nil {

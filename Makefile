@@ -15,6 +15,8 @@ BUILD_CMD="cd $(CMDDIR) && $(GOBUILD) -ldflags $(RELEASE_LDFLAGS) -o $(BUILDDIR)
 XBUILD_LINUX_CMD="cd $(BUILDDIR) && $(XGOCMD) -ldflags $(STATIC_RELEASE_LDFLAGS) -tags '$(BUILD_TAGS)' --targets=linux/* $(CMDDIR)"
 XBUILD_OTHERS_CMD="cd $(BUILDDIR) && $(XGOCMD) -ldflags $(RELEASE_LDFLAGS) -tags '$(BUILD_TAGS)' --targets=darwin/*,windows/*,android/*,ios/* $(CMDDIR)"
 
+.PHONY: build
+
 all: build
 
 build:
