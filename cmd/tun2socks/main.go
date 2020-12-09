@@ -164,7 +164,7 @@ func main() {
 	if creater, found := handlerCreater[*args.ProxyType]; found {
 		creater()
 	} else {
-		log.Fatalf("unsupported proxy type")
+		log.Fatalf("unsupported proxy type: %s", *args.ProxyType)
 	}
 
 	if args.DnsFallback != nil && *args.DnsFallback {
