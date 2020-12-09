@@ -12,7 +12,12 @@ CMDDIR=$(shell pwd)/cmd/tun2socks
 PROGRAM=tun2socks
 GOOS:=$(shell go env GOOS)
 
-BUILD_CMD="cd $(CMDDIR) && $(GOBUILD) -ldflags $(RELEASE_LDFLAGS) -o $(BUILDDIR)/$(PROGRAM)_$(GOOS) -v -tags '$(BUILD_TAGS)'"
+ifeq "$(strip $(GOOS))" "windows"
+SUFFIX=.exe
+endif
+
+BUILD_CMD="cd $(CMDDIR) && $(GOBUILD) -ldflags $(RELEASE_LDFLAGS) -o $(BUILDDIR)/$(PROGRAM)_$(GOOS)$(SUFFIX) -v -tags '$(BUILD_TAGS)'"
+
 XBUILD_LINUX_CMD="cd $(BUILDDIR) && $(XGOCMD) -ldflags $(STATIC_RELEASE_LDFLAGS) -tags '$(BUILD_TAGS)' --targets=linux/* $(CMDDIR)"
 XBUILD_OTHERS_CMD="cd $(BUILDDIR) && $(XGOCMD) -ldflags $(RELEASE_LDFLAGS) -tags '$(BUILD_TAGS)' --targets=darwin/*,windows/*,android/*,ios/* $(CMDDIR)"
 

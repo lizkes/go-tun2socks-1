@@ -2,29 +2,13 @@ package tun
 
 import (
 	"fmt"
-	"io"
 
 	"github.com/eycorsican/go-tun2socks/routes"
-	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
+	"golang.zx2c4.com/wireguard/tun"
 )
 
-func OpenTunDevice(name, addr, gw, mask string, dnsServers []string, persist bool) (io.ReadWriteCloser, error) {
-	cfg := water.Config{
-		DeviceType: water.TUN,
-	}
-	cfg.Name = name
-	cfg.Persist = persist
-	tunDev, err := water.New(cfg)
-	if err != nil {
-		return nil, err
-	}
-	name = tunDev.Name()
-
-	return tunDev, setInterface(name, addr, gw, mask)
-}
-
-func setInterface(name, addr, gw, mask string) error {
+func setInterface(name, addr, gw, mask string, tun *tun.NativeTun) error {
 	link, err := netlink.LinkByName(name)
 	if err != nil {
 		return fmt.Errorf("failed to detect %s interface: %s", name, err)

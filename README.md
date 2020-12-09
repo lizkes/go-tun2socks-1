@@ -37,3 +37,7 @@ Create a tunnel:
 ```sh
 sudo tun2socks -proxyServer 127.0.0.1:1234 -routes 10.0.0.0/8,172.16.0.0/12 -exclude example.com,10.0.0.1 -loglevel debug
 ```
+
+## Windows
+
+Windows build requires a https://www.wintun.net dll located in the tun2socks executable path.

@@ -1,67 +1,31 @@
 package tun
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"net"
 	"os/exec"
-	"strconv"
-	"strings"
 
-	"github.com/songgao/water"
+	"github.com/eycorsican/go-tun2socks/routes"
+	"golang.zx2c4.com/wireguard/tun"
 )
 
-func isIPv4(ip net.IP) bool {
-	if ip.To4() != nil {
-		return true
-	}
-	return false
-}
-
-func isIPv6(ip net.IP) bool {
-	// To16() also valid for ipv4, ensure it's not an ipv4 address
-	if ip.To4() != nil {
-		return false
-	}
-	if ip.To16() != nil {
-		return true
-	}
-	return false
-}
-
-func OpenTunDevice(name, addr, gw, mask string, dnsServers []string, persist bool) (io.ReadWriteCloser, error) {
-	tunDev, err := water.New(water.Config{
-		DeviceType: water.TUN,
-	})
+func setInterface(name, addr, gw, mask string, tun *tun.NativeTun) error {
+	addrs, err := routes.ParseAddresses(addr, gw, mask)
 	if err != nil {
-		return nil, err
-	}
-	name = tunDev.Name()
-	ip := net.ParseIP(addr)
-	if ip == nil {
-		return nil, errors.New("invalid IP address")
+		return err
 	}
 
-	var params string
-	if isIPv4(ip) {
-		params = fmt.Sprintf("%s inet %s netmask %s %s", name, addr, mask, gw)
-	} else if isIPv6(ip) {
-		prefixlen, err := strconv.Atoi(mask)
-		if err != nil {
-			return nil, errors.New(fmt.Sprintf("parse IPv6 prefixlen failed: %v", err))
-		}
-		params = fmt.Sprintf("%s inet6 %s/%d", name, addr, prefixlen)
-	} else {
-		return nil, errors.New("invalid IP address")
-	}
-
-	out, err := exec.Command("ifconfig", strings.Split(params, " ")...).Output()
+	v, err := exec.Command("ifconfig", name, "mtu", "1500").Output()
 	if err != nil {
-		if len(out) != 0 {
-			return nil, errors.New(fmt.Sprintf("%v, output: %s", err, out))
-		}
-		return nil, err
+		return fmt.Errorf("failed to set MTU: %s: %s", v, err)
 	}
-	return tunDev, nil
+	v, err = exec.Command("ifconfig", name, "inet", addrs[0].String(), addrs[1].String()).Output()
+	if err != nil {
+		return fmt.Errorf("failed to set ip addr: %s: %s", v, err)
+	}
+	v, err = exec.Command("ifconfig", name, "up").Output()
+	if err != nil {
+		return fmt.Errorf("failed to bring up interface: %s: %s", v, err)
+	}
+
+	return nil
 }
