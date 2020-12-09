@@ -38,6 +38,18 @@ func Get(routes, excludeRoutes, addr, gw, mask string) (net.IP, []*net.IPNet, er
 
 		_, v, err := net.ParseCIDR(cidr)
 		if err != nil {
+			// trying to lookup a hostname
+			if ips, err := net.LookupIP(cidr); err == nil {
+				for _, v := range ips {
+					if v := v.To4(); v != nil {
+						log.Debugf("including %s (%s) to routes", cidr, v)
+						res.InsertNet(getNet(v))
+					}
+				}
+				continue
+			} else {
+				return nil, nil, fmt.Errorf("failed to resolve %q: %v", cidr, err)
+			}
 			return nil, nil, fmt.Errorf("failed to parse %s CIDR: %v", cidr, err)
 		}
 		res.InsertNet(v)
