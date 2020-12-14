@@ -90,8 +90,18 @@ const (
 )
 
 func main() {
+	// linux and darwin pick up the tun index automatically
+	// windows requires the exact tun name
+	defaultTunName := ""
+	switch runtime.GOOS {
+	case "darwin":
+		defaultTunName = "utun"
+	case "windows":
+		defaultTunName = "socks2tun"
+	}
+	args.TunName = flag.String("tunName", defaultTunName, "TUN interface name")
+
 	args.Version = flag.Bool("version", false, "Print version")
-	args.TunName = flag.String("tunName", "tun1", "TUN interface name")
 	args.TunAddr = flag.String("tunAddr", "10.255.0.2", "TUN interface address")
 	args.TunGw = flag.String("tunGw", "10.255.0.1", "TUN interface gateway")
 	args.TunMask = flag.String("tunMask", "255.255.255.255", "TUN interface netmask, it should be a prefixlen (a number) for IPv6 address")
