@@ -45,8 +45,6 @@ type CmdArgs struct {
 	BlockOutsideDns *bool
 	ProxyType       *string
 	ProxyServer     *string
-	ProxyHost       *string
-	ProxyPort       *uint16
 	UdpTimeout      *time.Duration
 	LogLevel        *string
 	DnsFallback     *bool
