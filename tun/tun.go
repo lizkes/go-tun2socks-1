@@ -6,7 +6,7 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-func OpenTunDevice(name, addr, gw, mask string, dnsServers []string, persist bool, mtu int) (io.ReadWriteCloser, error) {
+func OpenTunDevice(name, addr, gw, mask string, mtu int, dnsServers []string) (io.ReadWriteCloser, error) {
 	tunDev, err := tun.CreateTUN(name, mtu)
 	if err != nil {
 		return nil, err

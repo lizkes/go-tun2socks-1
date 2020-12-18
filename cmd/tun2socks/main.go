@@ -41,7 +41,6 @@ type CmdArgs struct {
 	TunMask         *string
 	TunDns          *string
 	TunMTU          *int
-	TunPersist      *bool
 	BlockOutsideDns *bool
 	ProxyType       *string
 	ProxyServer     *string
@@ -82,8 +81,6 @@ func (a *CmdArgs) addFlag(f cmdFlag) {
 
 var args = new(CmdArgs)
 
-var lwipWriter io.Writer
-
 const (
 	maxMTU = 65535
 )
@@ -106,7 +103,6 @@ func main() {
 	args.TunMask = flag.String("tunMask", "255.255.255.255", "TUN interface netmask, it should be a prefixlen (a number) for IPv6 address")
 	args.TunDns = flag.String("tunDns", "8.8.8.8,8.8.4.4", "DNS resolvers for TUN interface (only need on Windows)")
 	args.TunMTU = flag.Int("tunMTU", 1300, "TUN interface MTU")
-	args.TunPersist = flag.Bool("tunPersist", false, "Persist TUN interface after the program exits or the last open file descriptor is closed (Linux only)")
 	args.BlockOutsideDns = flag.Bool("blockOutsideDns", false, "Prevent DNS leaks by blocking plaintext DNS queries going out through non-TUN interface (may require admin privileges) (Windows only) ")
 	args.ProxyType = flag.String("proxyType", "socks", "Proxy handler type")
 	args.LogLevel = flag.String("loglevel", "info", "Logging level. (debug, info, warn, error, none)")
@@ -115,14 +111,14 @@ func main() {
 
 	flag.Parse()
 
-	if *args.TunMTU > maxMTU {
-		fmt.Printf("MTU exceeds %d\n", maxMTU)
-		os.Exit(1)
-	}
-
 	if *args.Version {
 		fmt.Println(version)
 		os.Exit(0)
+	}
+
+	if *args.TunMTU > maxMTU {
+		fmt.Printf("MTU exceeds %d\n", maxMTU)
+		os.Exit(1)
 	}
 
 	// Initialization ops after parsing flags.
@@ -148,17 +144,27 @@ func main() {
 		panic("unsupport logging level")
 	}
 
+	err := run()
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+}
+
+func run() error {
 	tunGw, tunRoutes, err := routes.Get(*args.Routes, *args.Exclude, *args.TunAddr, *args.TunGw, *args.TunMask)
 	if err != nil {
-		log.Fatalf("cannot parse config values: %v", err)
+		return fmt.Errorf("cannot parse config values: %v", err)
 	}
 
 	// Open the tun device.
 	dnsServers := strings.Split(*args.TunDns, ",")
-	tunDev, err := tun.OpenTunDevice(*args.TunName, *args.TunAddr, *args.TunGw, *args.TunMask, dnsServers, *args.TunPersist, *args.TunMTU)
+	tunDev, err := tun.OpenTunDevice(*args.TunName, *args.TunAddr, *args.TunGw, *args.TunMask, *args.TunMTU, dnsServers)
 	if err != nil {
-		log.Fatalf("failed to open tun device: %v", err)
+		return fmt.Errorf("failed to open tun device: %v", err)
 	}
+
+	// close the tun device
+	defer tunDev.Close()
 
 	// unset routes on exit, when provided
 	defer routes.Unset(*args.TunName, tunGw, tunRoutes)
@@ -168,7 +174,7 @@ func main() {
 
 	if runtime.GOOS == "windows" && *args.BlockOutsideDns {
 		if err := blocker.BlockOutsideDns(*args.TunName); err != nil {
-			log.Fatalf("failed to block outside DNS: %v", err)
+			return fmt.Errorf("failed to block outside DNS: %v", err)
 		}
 	}
 
@@ -179,7 +185,7 @@ func main() {
 	if creater, found := handlerCreater[*args.ProxyType]; found {
 		creater()
 	} else {
-		log.Fatalf("unsupported proxy type: %s", *args.ProxyType)
+		return fmt.Errorf("unsupported proxy type: %s", *args.ProxyType)
 	}
 
 	if args.DnsFallback != nil && *args.DnsFallback {
@@ -187,7 +193,7 @@ func main() {
 		if creater, found := handlerCreater["dnsfallback"]; found {
 			creater()
 		} else {
-			log.Fatalf("DNS fallback connection handler not found, build with `dnsfallback` tag")
+			return fmt.Errorf("DNS fallback connection handler not found, build with `dnsfallback` tag")
 		}
 	}
 
@@ -198,10 +204,11 @@ func main() {
 	})
 
 	// Copy packets from tun device to lwip stack, it's the main loop.
+	errChan := make(chan error, 1)
 	go func() {
 		_, err := io.CopyBuffer(lwipWriter, tunDev, make([]byte, maxMTU))
 		if err != nil {
-			log.Fatalf("copying data failed: %v", err)
+			errChan <- fmt.Errorf("copying data failed: %v", err)
 		}
 	}()
 
@@ -209,5 +216,13 @@ func main() {
 
 	osSignals := make(chan os.Signal, 1)
 	signal.Notify(osSignals, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGHUP)
-	<-osSignals
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-osSignals:
+		return nil
+	}
+
+	return nil
 }
