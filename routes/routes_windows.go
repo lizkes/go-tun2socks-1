@@ -4,41 +4,30 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
-	"regexp"
 )
 
-var re = regexp.MustCompile(`IfIndex\s+:\s+(\d+)`)
-var ifIndex string
+var ifIndex int
 
-func getIfID(iface string) error {
-	args := []string{
-		"int",
-		"ipv4",
-		"show",
-		"interfaces",
-		iface,
-	}
-	v, err := exec.Command("netsh.exe", args...).Output()
+func getIfID(name string) error {
+	iface, err := net.InterfaceByName(name)
 	if err != nil {
-		return fmt.Errorf("failed to find a %q interface index: %s, %s", iface, v, err)
-	}
-	if v := re.FindSubmatch(v); len(v) == 2 {
-		ifIndex = string(v[1])
-		return nil
+		return fmt.Errorf("failed to find a %q interface index: %s", name, err)
 	}
 
-	return fmt.Errorf("failed to find a %q interface index: %s", iface, v)
+	ifIndex = iface.Index
+
+	return nil
 }
 
-func routeAdd(dst interface{}, gw net.IP, priority int, iface string) error {
-	if ifIndex == "" {
-		if err := getIfID(iface); err != nil {
+func routeAdd(dst interface{}, gw net.IP, priority int, name string) error {
+	if ifIndex == 0 {
+		if err := getIfID(name); err != nil {
 			return err
 		}
 	}
 
 	// an implementation of "replace"
-	routeDel(dst, gw, priority, iface)
+	routeDel(dst, gw, priority, name)
 	d := getNet(dst)
 	args := []string{
 		"add",
@@ -49,16 +38,16 @@ func routeAdd(dst interface{}, gw net.IP, priority int, iface string) error {
 		"metric",
 		fmt.Sprintf("%d", priority+1),
 		"if",
-		ifIndex,
+		fmt.Sprintf("%d", ifIndex),
 	}
 	v, err := exec.Command("route.exe", args...).Output()
 	if err != nil {
-		return fmt.Errorf("failed to add %s route to %s interface: %s: %s", dst, iface, v, err)
+		return fmt.Errorf("failed to add %s route to %s interface: %s: %s", dst, name, v, err)
 	}
 	return nil
 }
 
-func routeDel(dst interface{}, gw net.IP, priority int, iface string) error {
+func routeDel(dst interface{}, gw net.IP, priority int, name string) error {
 	d := getNet(dst)
 	args := []string{
 		"delete",
@@ -69,11 +58,11 @@ func routeDel(dst interface{}, gw net.IP, priority int, iface string) error {
 		"metric",
 		fmt.Sprintf("%d", priority+1),
 		"if",
-		ifIndex,
+		fmt.Sprintf("%d", ifIndex),
 	}
 	v, err := exec.Command("route.exe", args...).Output()
 	if err != nil {
-		return fmt.Errorf("failed to delete %s route from %s interface: %s: %s", dst, iface, v, err)
+		return fmt.Errorf("failed to delete %s route from %s interface: %s: %s", dst, name, v, err)
 	}
 	return nil
 }
