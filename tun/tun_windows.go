@@ -9,12 +9,42 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-func setInterface(name, addr, gw, mask string, tun *tun.NativeTun) error {
+type tunnel struct {
+	tun.Device
+}
+
+func (t *tunnel) Read(b []byte) (int, error) {
+	return t.Device.Read(b, 0)
+}
+
+func (t *tunnel) Write(b []byte) (int, error) {
+	return t.Device.Write(b, 0)
+}
+
+func (t *tunnel) Close() error {
+	return t.Device.Close()
+}
+
+func setInterface(name, addr, gw, mask string, mtu int, tun *tun.NativeTun) error {
+	args := []string{
+		"interface",
+		"ipv4",
+		"set",
+		"subinterface",
+		name,
+		fmt.Sprintf("mtu=%d", mtu),
+		"store=persistent",
+	}
+	v, err := exec.Command("netsh.exe", args...).Output()
+	if err != nil {
+		return fmt.Errorf("failed to set MTU on %s interface: %s", name, err)
+	}
+
 	addrs, err := routes.ParseAddresses(addr, gw, mask)
 	if err != nil {
 		return err
 	}
-	args := []string{
+	args = []string{
 		"interface",
 		"ipv4",
 		"set",
@@ -24,7 +54,7 @@ func setInterface(name, addr, gw, mask string, tun *tun.NativeTun) error {
 		addrs[0].IP.String(),
 		net.IP(addrs[1].Mask).To4().String(),
 	}
-	v, err := exec.Command("netsh.exe", args...).Output()
+	v, err = exec.Command("netsh.exe", args...).Output()
 	if err != nil {
 		return fmt.Errorf("failed to set tun interface: %s: %s", v, err)
 	}

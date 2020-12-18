@@ -8,10 +8,15 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-func setInterface(name, addr, gw, mask string, tun *tun.NativeTun) error {
+func setInterface(name, addr, gw, mask string, mtu int, tun *tun.NativeTun) error {
 	link, err := netlink.LinkByName(name)
 	if err != nil {
 		return fmt.Errorf("failed to detect %s interface: %s", name, err)
+	}
+
+	err = netlink.LinkSetMTU(link, mtu)
+	if err != nil {
+		return fmt.Errorf("failed to set MTU on %s interface: %s", name, err)
 	}
 
 	addrs, err := routes.ParseAddresses(addr, gw, mask)

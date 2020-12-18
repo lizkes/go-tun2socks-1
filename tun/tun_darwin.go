@@ -8,13 +8,13 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 )
 
-func setInterface(name, addr, gw, mask string, tun *tun.NativeTun) error {
+func setInterface(name, addr, gw, mask string, mtu int, tun *tun.NativeTun) error {
 	addrs, err := routes.ParseAddresses(addr, gw, mask)
 	if err != nil {
 		return err
 	}
 
-	v, err := exec.Command("ifconfig", name, "mtu", "1500").Output()
+	v, err := exec.Command("ifconfig", name, "mtu", fmt.Sprintf("%d", mtu)).Output()
 	if err != nil {
 		return fmt.Errorf("failed to set MTU: %s: %s", v, err)
 	}

@@ -40,6 +40,7 @@ type CmdArgs struct {
 	TunGw           *string
 	TunMask         *string
 	TunDns          *string
+	TunMTU          *int
 	TunPersist      *bool
 	BlockOutsideDns *bool
 	ProxyType       *string
@@ -86,7 +87,7 @@ var args = new(CmdArgs)
 var lwipWriter io.Writer
 
 const (
-	MTU = 1500
+	maxMTU = 65535
 )
 
 func main() {
@@ -106,6 +107,7 @@ func main() {
 	args.TunGw = flag.String("tunGw", "10.255.0.1", "TUN interface gateway")
 	args.TunMask = flag.String("tunMask", "255.255.255.255", "TUN interface netmask, it should be a prefixlen (a number) for IPv6 address")
 	args.TunDns = flag.String("tunDns", "8.8.8.8,8.8.4.4", "DNS resolvers for TUN interface (only need on Windows)")
+	args.TunMTU = flag.Int("tunMTU", 1300, "TUN interface MTU")
 	args.TunPersist = flag.Bool("tunPersist", false, "Persist TUN interface after the program exits or the last open file descriptor is closed (Linux only)")
 	args.BlockOutsideDns = flag.Bool("blockOutsideDns", false, "Prevent DNS leaks by blocking plaintext DNS queries going out through non-TUN interface (may require admin privileges) (Windows only) ")
 	args.ProxyType = flag.String("proxyType", "socks", "Proxy handler type")
@@ -114,6 +116,11 @@ func main() {
 	args.Exclude = flag.String("exclude", "", "Subnets or hostnames to exclude from forwarding via TUN interface")
 
 	flag.Parse()
+
+	if *args.TunMTU > maxMTU {
+		fmt.Printf("MTU exceeds %d\n", maxMTU)
+		os.Exit(1)
+	}
 
 	if *args.Version {
 		fmt.Println(version)
@@ -150,7 +157,7 @@ func main() {
 
 	// Open the tun device.
 	dnsServers := strings.Split(*args.TunDns, ",")
-	tunDev, err := tun.OpenTunDevice(*args.TunName, *args.TunAddr, *args.TunGw, *args.TunMask, dnsServers, *args.TunPersist)
+	tunDev, err := tun.OpenTunDevice(*args.TunName, *args.TunAddr, *args.TunGw, *args.TunMask, dnsServers, *args.TunPersist, *args.TunMTU)
 	if err != nil {
 		log.Fatalf("failed to open tun device: %v", err)
 	}
@@ -194,7 +201,7 @@ func main() {
 
 	// Copy packets from tun device to lwip stack, it's the main loop.
 	go func() {
-		_, err := io.CopyBuffer(lwipWriter, tunDev, make([]byte, MTU))
+		_, err := io.CopyBuffer(lwipWriter, tunDev, make([]byte, maxMTU))
 		if err != nil {
 			log.Fatalf("copying data failed: %v", err)
 		}
