@@ -66,7 +66,7 @@ func (h *udpHandler) Connect(conn core.UDPConn, target *net.UDPAddr) error {
 	h.udpConns[conn] = pc
 	h.Unlock()
 	go h.fetchUDPInput(conn, pc)
-	log.Infof("new proxy connection for target: %s:%s", target.Network(), target.String())
+	log.Infof("[udp][redirect] new proxy connection for target: %s:%s", target.Network(), target.String())
 	return nil
 }
 

@@ -82,6 +82,6 @@ func (h *tcpHandler) Handle(conn net.Conn, target *net.TCPAddr) error {
 	}
 	go h.handleInput(conn, c)
 	go h.handleOutput(conn, c)
-	log.Infof("new proxy connection for target: %s:%s", target.Network(), target.String())
+	log.Infof("[tcp][redirect] new proxy connection for target: %s:%s", target.Network(), target.String())
 	return nil
 }

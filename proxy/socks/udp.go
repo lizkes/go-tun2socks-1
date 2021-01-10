@@ -109,7 +109,7 @@ func (h *udpHandler) connectInternal(conn core.UDPConn, dest string) error {
 	}
 
 	c.Write(append([]byte{5, socks5UDPAssociate, 0}, []byte{1, 0, 0, 0, 0, 0, 0}...))
-	
+
 	// read VER REP RSV ATYP BND.ADDR BND.PORT
 	if _, err := io.ReadFull(c, buf[:3]); err != nil {
 		return err
@@ -145,7 +145,7 @@ func (h *udpHandler) connectInternal(conn core.UDPConn, dest string) error {
 
 	go h.fetchUDPInput(conn, pc)
 
-	log.Infof("new proxy connection to %v", dest)
+	log.Infof("[udp][socks] new proxy connection to %v", dest)
 
 	return nil
 }
